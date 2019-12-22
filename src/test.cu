@@ -14,7 +14,7 @@ __global__ void VectorAdd(int *a, int *b, int *c, int n) { //global -> tells the
 		c[i] = a[i] + b[i];
 }
 
-int main() {
+int main2() {
 	int *a, *b, *c;
 
 	cudaMallocManaged(&a, SIZE * sizeof(int)); // cudaMallocManaged returns a pointer
