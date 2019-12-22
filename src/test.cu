@@ -1,14 +1,13 @@
+/* ------------ TESTING PURPOSE ONLY ------------ */
+
 #include <stdio.h>
 #include <cuda_runtime.h>
 #include <device_launch_parameters.h>
 #include <iostream>
 
-//TESTING
-
 #define SIZE 1024
 
 __global__ void VectorAdd(int *a, int *b, int *c, int n) { //global -> tells the compiler that this function will be executed on the gpu
-
 	int i = threadIdx.x;
 
 	if (i < n)

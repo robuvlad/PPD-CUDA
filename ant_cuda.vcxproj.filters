@@ -4,10 +4,21 @@
     <Filter Include="src">
       <UniqueIdentifier>{33caec71-5506-4658-be85-c89e78dce398}</UniqueIdentifier>
     </Filter>
+    <Filter Include="src\model">
+      <UniqueIdentifier>{e664d8b7-2fff-45d3-9066-af6c3cd9549f}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
-    <CudaCompile Include="src\kernel.cu">
+    <CudaCompile Include="src\main.cu">
       <Filter>src</Filter>
     </CudaCompile>
+    <CudaCompile Include="src\test.cu">
+      <Filter>src</Filter>
+    </CudaCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="src\config.h">
+      <Filter>src</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>
