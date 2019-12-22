@@ -3,6 +3,7 @@
 #include <device_launch_parameters.h>
 #include <iostream>
 
+//TESTING
 
 #define SIZE 1024
 
