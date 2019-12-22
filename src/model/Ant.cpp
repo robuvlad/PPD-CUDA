@@ -1,8 +1,8 @@
 #include "Ant.h"
 
 
-Ant::Ant(int index, double x_pos, double y_pos, double speed, double direction) :
-	index{ index }, x_pos{ x_pos }, y_pos{ y_pos }, speed{ speed }, direction{ direction }, has_food{ false } {
+Ant::Ant(const int index, const Position position, const double speed, const double direction) :
+	index{ index }, position{ position }, speed{ speed }, direction{ direction }, has_food{ false } {
 }
 
 
