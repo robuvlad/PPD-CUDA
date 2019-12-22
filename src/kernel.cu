@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <cuda_runtime.h>
 #include <device_launch_parameters.h>
+#include <iostream>
 
 
 #define SIZE 1024
@@ -37,6 +38,9 @@ int main() {
 	cudaFree(a);
 	cudaFree(b);
 	cudaFree(c);
+
+	std::cout << "Press Enter to Continue";
+	std::cin.ignore();
 
 	return 0;
 }
