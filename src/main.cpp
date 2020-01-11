@@ -30,17 +30,16 @@ std::mutex mtx;
 
 // =========== DATA SEGMENT =============
 unsigned int antNumber = 100;
-double gameSpeed = 0.01;
+double gameSpeed = 0.001;
 unsigned int foodPacksNumber = 5;
 unsigned int avgPerFoodPack = 3;
 
 Ant* ants;
 FoodPack* foodPacks;
 Position* anthillPos;
+double* directionDeviations;
 
 bool dataChanged = true;
-
-int *pnt;
 
 
 double fRand(double fMin, double fMax)
@@ -58,6 +57,9 @@ void initializeState() {
 	printf("Allocating memory for %d foodPacks\n", foodPacksNumber);
 	cudaMallocManaged(&foodPacks, foodPacksNumber * sizeof(FoodPack));
 
+	printf("Allocationg memory for direction deviations\n");
+	cudaMallocManaged(&directionDeviations, antNumber * sizeof(double));
+
 	cudaMallocManaged(&anthillPos, sizeof(Position));
 	anthillPos = new Position(0.0f, 0.0f);
 
@@ -70,8 +72,6 @@ void initializeState() {
 	for (unsigned int i = 0; i < foodPacksNumber; i++) {
 		foodPacks[i] = FoodPack(avgPerFoodPack, Position(fRand(-1, 1), fRand(-1, 1)));
 	}
-
-	cudaMallocManaged(&pnt, sizeof(int));
 }
 
 // ==================== OPEN GL =====================================
@@ -102,7 +102,7 @@ void drawFoodPack(FoodPack* foodPack) {
 	static const double foodPackSize = 0.035;
 	if (foodPack->food_amount > 0) {
 		glBegin(GL_QUADS);
-		glColor3f(1.0f, 0.5f, 0.0f);
+		glColor3f(0.0f, 0.8f, 0.0f);
 		glVertex2f(foodPack->position.x_pos + foodPackSize, foodPack->position.y_pos);
 		glVertex2f(foodPack->position.x_pos, foodPack->position.y_pos + foodPackSize);
 		glVertex2f(foodPack->position.x_pos - foodPackSize, foodPack->position.y_pos);
@@ -148,18 +148,15 @@ void runProgram(int argc, char **argv)
 
 // ======================== CUDA CONTEXT ================================
 
-__global__ void moveAnt(Ant* ant, int antNumber, double gameSpeed, int* pnt) { //global -> tells the compiler that this function will be executed on the gpu
+__global__ void moveAnt(Ant* ant, int antNumber, double gameSpeed, double* directionDeviation) { //global -> tells the compiler that this function will be executed on the gpu
 	int i = threadIdx.x;
 
 	if (i >= antNumber) {
 		return;
 	}
 
-	*pnt += 1;
-
 #ifdef DEBUG
 	if (i == 2) {
-		printf("PNT %d\n", *pnt);
 		printf("ANT NR %d GAME SPEED %d\n", antNumber, gameSpeed);
 		printf("POS ANT %f %f\n", (ant + i)->position.x_pos, (ant + i)->position.y_pos);
 	}
@@ -174,6 +171,7 @@ __global__ void moveAnt(Ant* ant, int antNumber, double gameSpeed, int* pnt) { /
 	(ant + i)->position.x_pos = new_x;
 	(ant + i)->position.y_pos = new_y;
 
+	(ant + i)->direction += directionDeviation[i];
 }
 
 void cudaThread() {
@@ -182,7 +180,11 @@ void cudaThread() {
 
 	while (true) {
 
-		moveAnt <<<1, antNumber>>> (ants, antNumber, gameSpeed, pnt);
+		for (unsigned int i = 0; i < antNumber; i++) {
+			directionDeviations[i] = fRand(-0.2f, 0.2f);
+		}
+
+		moveAnt <<<1, antNumber>>> (ants, antNumber, gameSpeed, directionDeviations);
 
 		cudaDeviceSynchronize();
 
