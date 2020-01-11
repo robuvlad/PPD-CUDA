@@ -30,10 +30,10 @@ std::mutex mtx;
 #define PI 3.14159265
 
 // =========== DATA SEGMENT =============
-unsigned int antNumber = 10;
-double gameSpeed = 0.004;
-unsigned int foodPacksNumber = 10;
-unsigned int avgPerFoodPack = 1;
+unsigned int antNumber = 200;
+double gameSpeed = 0.08;
+unsigned int foodPacksNumber = 100;
+unsigned int avgPerFoodPack = 40;
 double radius = 0.04;
 
 Ant* ants;
@@ -88,8 +88,13 @@ void initializeState() {
 
 void drawAnt(Ant* ant) {
 	static const double antSize = 0.02;
-	glBegin(GL_QUADS);                       
-	glColor3f(1.0f, 0.0f, 0.0f);            
+	glBegin(GL_QUADS);
+	if (ant->has_food) {
+		glColor3f(1.0f, 3.0f, 2.0f);
+	}
+	else {
+		glColor3f(1.0f, 0.0f, 0.0f);
+	}
 	glVertex2f(ant->position.x_pos + antSize, ant->position.y_pos);
 	glVertex2f(ant->position.x_pos, ant->position.y_pos + antSize);
 	glVertex2f(ant->position.x_pos - antSize, ant->position.y_pos);
@@ -109,24 +114,18 @@ void drawAnthill() {
 }
 
 void drawFoodPack(FoodPack* foodPack) {
-	static const double foodPackSize = 0.035;
+	double foodPackSize = 0.015  * (foodPack->food_amount > 0 ? log(foodPack->food_amount) + 1 : 1);
+	glBegin(GL_TRIANGLES);
 	if (foodPack->food_amount > 0) {
-		glBegin(GL_QUADS);
 		glColor3f(0.0f, 0.8f, 0.0f);
-		glVertex2f(foodPack->position.x_pos + foodPackSize, foodPack->position.y_pos);
-		glVertex2f(foodPack->position.x_pos, foodPack->position.y_pos + foodPackSize);
-		glVertex2f(foodPack->position.x_pos - foodPackSize, foodPack->position.y_pos);
-		glVertex2f(foodPack->position.x_pos, foodPack->position.y_pos - foodPackSize);
-		glEnd();
-	} else {
-		glBegin(GL_QUADS);
-		glColor3f(0.4f, 0.2f, 0.5f);
-		glVertex2f(foodPack->position.x_pos + foodPackSize, foodPack->position.y_pos);
-		glVertex2f(foodPack->position.x_pos, foodPack->position.y_pos + foodPackSize);
-		glVertex2f(foodPack->position.x_pos - foodPackSize, foodPack->position.y_pos);
-		glVertex2f(foodPack->position.x_pos, foodPack->position.y_pos - foodPackSize);
-		glEnd();
 	}
+	else {
+		glColor3f(0.4f, 0.2f, 0.5f);
+	}
+	glVertex2f(foodPack->position.x_pos, foodPack->position.y_pos + foodPackSize);
+	glVertex2f(foodPack->position.x_pos + foodPackSize, foodPack->position.y_pos - foodPackSize);
+	glVertex2f(foodPack->position.x_pos - foodPackSize, foodPack->position.y_pos - foodPackSize);
+	glEnd();
 }
 
 /* Handler for window-repaint event. Call back when the window first appears and
