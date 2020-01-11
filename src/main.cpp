@@ -29,7 +29,7 @@ std::mutex mtx;
 
 
 // =========== DATA SEGMENT =============
-unsigned int antNumber = 10;
+unsigned int antNumber = 100;
 double gameSpeed = 0.01;
 unsigned int foodPacksNumber = 5;
 unsigned int avgPerFoodPack = 3;
@@ -76,15 +76,39 @@ void initializeState() {
 
 // ==================== OPEN GL =====================================
 
-void drawAnt(Ant ant) {
-	static const double size = 0.02;
+void drawAnt(Ant* ant) {
+	static const double antSize = 0.02;
 	glBegin(GL_QUADS);                       
 	glColor3f(1.0f, 0.0f, 0.0f);            
-	glVertex2f(ant.position.x_pos + size, ant.position.y_pos);             
-	glVertex2f(ant.position.x_pos, ant.position.y_pos + size);
-	glVertex2f(ant.position.x_pos - size, ant.position.y_pos);
-	glVertex2f(ant.position.x_pos, ant.position.y_pos - size);
+	glVertex2f(ant->position.x_pos + antSize, ant->position.y_pos);
+	glVertex2f(ant->position.x_pos, ant->position.y_pos + antSize);
+	glVertex2f(ant->position.x_pos - antSize, ant->position.y_pos);
+	glVertex2f(ant->position.x_pos, ant->position.y_pos - antSize);
 	glEnd();
+}
+
+void drawAnthill() {
+	static const double anthillSize = 0.075;
+	glBegin(GL_QUADS);
+	glColor3f(1.0f, 0.5f, 0.0f);
+	glVertex2f(anthillPos->x_pos + anthillSize, anthillPos->y_pos);
+	glVertex2f(anthillPos->x_pos, anthillPos->y_pos + anthillSize);
+	glVertex2f(anthillPos->x_pos - anthillSize, anthillPos->y_pos);
+	glVertex2f(anthillPos->x_pos, anthillPos->y_pos - anthillSize);
+	glEnd();
+}
+
+void drawFoodPack(FoodPack* foodPack) {
+	static const double foodPackSize = 0.035;
+	if (foodPack->food_amount > 0) {
+		glBegin(GL_QUADS);
+		glColor3f(1.0f, 0.5f, 0.0f);
+		glVertex2f(foodPack->position.x_pos + foodPackSize, foodPack->position.y_pos);
+		glVertex2f(foodPack->position.x_pos, foodPack->position.y_pos + foodPackSize);
+		glVertex2f(foodPack->position.x_pos - foodPackSize, foodPack->position.y_pos);
+		glVertex2f(foodPack->position.x_pos, foodPack->position.y_pos - foodPackSize);
+		glEnd();
+	}
 }
 
 /* Handler for window-repaint event. Call back when the window first appears and
@@ -95,8 +119,14 @@ void display()
 		glClearColor(0.0f, 0.0f, 0.0f, 1.0f);    // Set background color to black and opaque
 		glClear(GL_COLOR_BUFFER_BIT);            // Clear the color buffer (background)
 
+		drawAnthill();
+
 		for (unsigned int i = 0; i < antNumber; i++) {
-			drawAnt(ants[i]);
+			drawAnt(ants + i);
+		}
+
+		for (unsigned int i = 0; i < foodPacksNumber; i++) {
+			drawFoodPack(foodPacks + i);
 		}
 
 		glFlush(); // Render now
@@ -158,13 +188,16 @@ void cudaThread() {
 
 		dataChanged = true;
 
-		std::this_thread::sleep_for(std::chrono::milliseconds(100));
+		std::this_thread::sleep_for(std::chrono::milliseconds(30));
 	}
 }
 
+// =================== APP ENTRY POINT =======================
 
 int main(int argc, char **argv) 
 {
+	srand(time(NULL));
+
 	std::cout << "Starting ANT CUDA application" << std::endl;
 
 	initializeState();

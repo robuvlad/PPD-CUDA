@@ -11,7 +11,7 @@
 
 // OpenGL configurations
 #define WINDOW_WIDTH            800
-#define WINDOW_HEIGTH           400
+#define WINDOW_HEIGTH           800
 #define WINDOW_X_POSITION       300
 #define WINDOW_Y_POSITION       200
 #define WINDOW_TITLE            "ANT Simulation"
