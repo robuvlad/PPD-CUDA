@@ -1,38 +1,29 @@
 #include <iostream>
-#include "config.h"
 #include <device_launch_parameters.h>
-
-// OpenGL Graphics includes
 #include <helper_gl.h>
 #include <GL/freeglut.h>
-
-// CUDA includes
 #include <cuda_runtime.h>
 #include <cuda_gl_interop.h>
-
-// CUDA utilities and system includes
 #include <helper_cuda.h>
 #include <helper_functions.h>
 #include <rendercheck_gl.h>
-
 #include <thread>
 #include <math.h>
 #include <chrono>
-
-
+#include "config.h"
 #include "model/Ant.h"
 #include "model/FoodPack.h"
 
 
-
 // =========== DATA SEGMENT =============
+
 Ant* ants;
 FoodPack* foodPacks;
 Position* anthillPos;
 double* directionDeviations;
-
 bool dataChanged = true;
 
+// =========== UTILS ===========
 
 double fRand(double fMin, double fMax)
 {
@@ -74,10 +65,9 @@ void initializeState() {
 	}
 }
 
-// ==================== OPEN GL =====================================
+// =========== OPEN GL ===========
 
 void drawAnt(Ant* ant) {
-	static const double antSize = 0.02;
 	glBegin(GL_QUADS);
 	if (ant->has_food) {
 		glColor3f(1.0f, 3.0f, 2.0f);
@@ -85,26 +75,25 @@ void drawAnt(Ant* ant) {
 	else {
 		glColor3f(1.0f, 0.0f, 0.0f);
 	}
-	glVertex2f(ant->position.x_pos + antSize, ant->position.y_pos);
-	glVertex2f(ant->position.x_pos, ant->position.y_pos + antSize);
-	glVertex2f(ant->position.x_pos - antSize, ant->position.y_pos);
-	glVertex2f(ant->position.x_pos, ant->position.y_pos - antSize);
+	glVertex2f(ant->position.x_pos + ANT_SIZE, ant->position.y_pos);
+	glVertex2f(ant->position.x_pos, ant->position.y_pos + ANT_SIZE);
+	glVertex2f(ant->position.x_pos - ANT_SIZE, ant->position.y_pos);
+	glVertex2f(ant->position.x_pos, ant->position.y_pos - ANT_SIZE);
 	glEnd();
 }
 
 void drawAnthill() {
-	static const double anthillSize = 0.075;
 	glBegin(GL_QUADS);
 	glColor3f(1.0f, 0.5f, 0.0f);
-	glVertex2f(anthillPos->x_pos + anthillSize, anthillPos->y_pos);
-	glVertex2f(anthillPos->x_pos, anthillPos->y_pos + anthillSize);
-	glVertex2f(anthillPos->x_pos - anthillSize, anthillPos->y_pos);
-	glVertex2f(anthillPos->x_pos, anthillPos->y_pos - anthillSize);
+	glVertex2f(anthillPos->x_pos + ANTHILL_SIZE, anthillPos->y_pos);
+	glVertex2f(anthillPos->x_pos, anthillPos->y_pos + ANTHILL_SIZE);
+	glVertex2f(anthillPos->x_pos - ANTHILL_SIZE, anthillPos->y_pos);
+	glVertex2f(anthillPos->x_pos, anthillPos->y_pos - ANTHILL_SIZE);
 	glEnd();
 }
 
 void drawFoodPack(FoodPack* foodPack) {
-	double foodPackSize = 0.015  * (foodPack->food_amount > 0 ? log(foodPack->food_amount) + 1 : 1);
+	double foodPackSize = FOOD_PACK_SIZE * (foodPack->food_amount > 0 ? log(foodPack->food_amount) + 1 : 1);
 	glBegin(GL_TRIANGLES);
 	if (foodPack->food_amount > 0) {
 		glColor3f(0.0f, 0.8f, 0.0f);
@@ -118,13 +107,11 @@ void drawFoodPack(FoodPack* foodPack) {
 	glEnd();
 }
 
-/* Handler for window-repaint event. Call back when the window first appears and
-whenever the window needs to be re-painted. */
 void display() 
 {
 	if (dataChanged) {
-		glClearColor(0.0f, 0.0f, 0.0f, 1.0f);    // Set background color to black and opaque
-		glClear(GL_COLOR_BUFFER_BIT);            // Clear the color buffer (background)
+		glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+		glClear(GL_COLOR_BUFFER_BIT);
 
 		drawAnthill();
 
@@ -136,7 +123,7 @@ void display()
 			drawFoodPack(foodPacks + i);
 		}
 
-		glFlush(); // Render now
+		glFlush();
 		dataChanged = false;
 	}
 }
@@ -145,29 +132,22 @@ void display()
 void runProgram(int argc, char **argv)
 {
 	glutInit(&argc, argv);      
-	glutInitWindowSize(WINDOW_WIDTH, WINDOW_HEIGTH);                 // Set the window's initial width & height
-	glutInitWindowPosition(WINDOW_X_POSITION, WINDOW_Y_POSITION);    // Position the window's initial top-left corner
-	glutCreateWindow(WINDOW_TITLE);                                  // Create a window with the given title
-	glutDisplayFunc(display);                                        // Register display callback handler for window re-paint
-	glutIdleFunc(display);                                     // Initialize GLUT
-	glutMainLoop();                                                  // Enter the event-processing loop
+	glutInitWindowSize(WINDOW_WIDTH, WINDOW_HEIGTH);
+	glutInitWindowPosition(WINDOW_X_POSITION, WINDOW_Y_POSITION);
+	glutCreateWindow(WINDOW_TITLE);
+	glutDisplayFunc(display);
+	glutIdleFunc(display);
+	glutMainLoop();
 }
 
 // ======================== CUDA CONTEXT ================================
 
-__global__ void moveAnt(Ant* ant, int antNumber, double gameSpeed, double* directionDeviation, FoodPack* foodPacks, int foodPacksNumber, double radius) { //global -> tells the compiler that this function will be executed on the gpu
+__global__ void moveAnt(Ant* ant, int antNumber, double gameSpeed, double* directionDeviation, FoodPack* foodPacks, int foodPacksNumber, double radius) {
 	int i = threadIdx.x;
 
 	if (i >= antNumber) {
 		return;
 	}
-
-#ifdef DEBUG
-	if (i == 2) {
-		printf("ANT NR %d GAME SPEED %d\n", antNumber, gameSpeed);
-		printf("POS ANT %f %f\n", (ant + i)->position.x_pos, (ant + i)->position.y_pos);
-	}
-#endif
 
 	if ((ant + i)->has_food) {
 		double distanceToAnthill = sqrt(((ant + i)->position.x_pos * (ant + i)->position.x_pos) + ((ant + i)->position.y_pos * (ant + i)->position.y_pos));
@@ -240,7 +220,6 @@ __global__ void moveAnt(Ant* ant, int antNumber, double gameSpeed, double* direc
 
 void cudaThread() {
 	printf("Running CUDA thread\n");
-	
 
 	while (true) {
 
@@ -254,7 +233,7 @@ void cudaThread() {
 
 		dataChanged = true;
 
-		std::this_thread::sleep_for(std::chrono::milliseconds(40));
+		std::this_thread::sleep_for(std::chrono::milliseconds(THREAD_SLEEP));
 	}
 }
 
