@@ -23,19 +23,9 @@
 #include "model/Ant.h"
 #include "model/FoodPack.h"
 
-#include <mutex>
 
-std::mutex mtx;
-
-#define PI 3.14159265
 
 // =========== DATA SEGMENT =============
-unsigned int antNumber = 200;
-double gameSpeed = 0.08;
-unsigned int foodPacksNumber = 100;
-unsigned int avgPerFoodPack = 40;
-double radius = 0.04;
-
 Ant* ants;
 FoodPack* foodPacks;
 Position* anthillPos;
@@ -53,25 +43,25 @@ double fRand(double fMin, double fMax)
 void initializeState() {
 	printf("Initializing game state\n");
 
-	printf("Allocating memory for %d ants\n", antNumber);
-	cudaMallocManaged(&ants, antNumber * sizeof(Ant));
+	printf("Allocating memory for %d ants\n", ANTS_AMOUNT);
+	cudaMallocManaged(&ants, ANTS_AMOUNT * sizeof(Ant));
 
-	printf("Allocating memory for %d foodPacks\n", foodPacksNumber);
-	cudaMallocManaged(&foodPacks, foodPacksNumber * sizeof(FoodPack));
+	printf("Allocating memory for %d foodPacks\n", NUMBER_FOOD_PACKS);
+	cudaMallocManaged(&foodPacks, NUMBER_FOOD_PACKS * sizeof(FoodPack));
 
 	printf("Allocationg memory for direction deviations\n");
-	cudaMallocManaged(&directionDeviations, antNumber * sizeof(double));
+	cudaMallocManaged(&directionDeviations, ANTS_AMOUNT * sizeof(double));
 
 	cudaMallocManaged(&anthillPos, sizeof(Position));
 	anthillPos = new Position(0.0f, 0.0f);
 
 	printf("Initializing ants to starting state\n");
-	for (unsigned int i = 0; i < antNumber; i++) {
-		ants[i] = Ant(i, *anthillPos, gameSpeed, fRand(0, 359));
+	for (unsigned int i = 0; i < ANTS_AMOUNT; i++) {
+		ants[i] = Ant(i, *anthillPos, GAME_SPEED, fRand(0, 359));
 	}
 
 	printf("Initializing food packs to starting state\n");
-	for (unsigned int i = 0; i < foodPacksNumber; i++) {
+	for (unsigned int i = 0; i < NUMBER_FOOD_PACKS; i++) {
 		double xPos = fRand(-1, 1);
 		double yPos = fRand(-1, 1);
 		if (yPos < 0.3) {
@@ -80,7 +70,7 @@ void initializeState() {
 		else if (yPos > -0.3 && yPos < 0) {
 			yPos -= 0.3;
 		}
-		foodPacks[i] = FoodPack(avgPerFoodPack, Position(xPos, yPos));
+		foodPacks[i] = FoodPack(AVG_FOOD_IN_PACK, Position(xPos, yPos));
 	}
 }
 
@@ -138,11 +128,11 @@ void display()
 
 		drawAnthill();
 
-		for (unsigned int i = 0; i < antNumber; i++) {
+		for (unsigned int i = 0; i < ANTS_AMOUNT; i++) {
 			drawAnt(ants + i);
 		}
 
-		for (unsigned int i = 0; i < foodPacksNumber; i++) {
+		for (unsigned int i = 0; i < NUMBER_FOOD_PACKS; i++) {
 			drawFoodPack(foodPacks + i);
 		}
 
@@ -254,11 +244,11 @@ void cudaThread() {
 
 	while (true) {
 
-		for (unsigned int i = 0; i < antNumber; i++) {
+		for (unsigned int i = 0; i < ANTS_AMOUNT; i++) {
 			directionDeviations[i] = fRand(-0.2f, 0.2f);
 		}
 
-		moveAnt <<<1, antNumber>>> (ants, antNumber, gameSpeed, directionDeviations, foodPacks, foodPacksNumber, radius);
+		moveAnt <<<1, ANTS_AMOUNT>>> (ants, ANTS_AMOUNT, GAME_SPEED, directionDeviations, foodPacks, NUMBER_FOOD_PACKS, PROXIMITY_RADIUS);
 
 		cudaDeviceSynchronize();
 
