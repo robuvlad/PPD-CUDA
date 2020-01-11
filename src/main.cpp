@@ -27,12 +27,14 @@
 
 std::mutex mtx;
 
+#define PI 3.14159265
 
 // =========== DATA SEGMENT =============
-unsigned int antNumber = 100;
-double gameSpeed = 0.001;
-unsigned int foodPacksNumber = 5;
-unsigned int avgPerFoodPack = 3;
+unsigned int antNumber = 10;
+double gameSpeed = 0.004;
+unsigned int foodPacksNumber = 400;
+unsigned int avgPerFoodPack = 1;
+double radius = 0.04;
 
 Ant* ants;
 FoodPack* foodPacks;
@@ -70,7 +72,15 @@ void initializeState() {
 
 	printf("Initializing food packs to starting state\n");
 	for (unsigned int i = 0; i < foodPacksNumber; i++) {
-		foodPacks[i] = FoodPack(avgPerFoodPack, Position(fRand(-1, 1), fRand(-1, 1)));
+		double xPos = fRand(-1, 1);
+		double yPos = fRand(-1, 1);
+		if (yPos < 0.3) {
+			yPos += 0.3;
+		}
+		else if (yPos > -0.3 && yPos < 0) {
+			yPos -= 0.3;
+		}
+		foodPacks[i] = FoodPack(avgPerFoodPack, Position(xPos, yPos));
 	}
 }
 
@@ -103,6 +113,14 @@ void drawFoodPack(FoodPack* foodPack) {
 	if (foodPack->food_amount > 0) {
 		glBegin(GL_QUADS);
 		glColor3f(0.0f, 0.8f, 0.0f);
+		glVertex2f(foodPack->position.x_pos + foodPackSize, foodPack->position.y_pos);
+		glVertex2f(foodPack->position.x_pos, foodPack->position.y_pos + foodPackSize);
+		glVertex2f(foodPack->position.x_pos - foodPackSize, foodPack->position.y_pos);
+		glVertex2f(foodPack->position.x_pos, foodPack->position.y_pos - foodPackSize);
+		glEnd();
+	} else {
+		glBegin(GL_QUADS);
+		glColor3f(0.4f, 0.2f, 0.5f);
 		glVertex2f(foodPack->position.x_pos + foodPackSize, foodPack->position.y_pos);
 		glVertex2f(foodPack->position.x_pos, foodPack->position.y_pos + foodPackSize);
 		glVertex2f(foodPack->position.x_pos - foodPackSize, foodPack->position.y_pos);
@@ -148,7 +166,7 @@ void runProgram(int argc, char **argv)
 
 // ======================== CUDA CONTEXT ================================
 
-__global__ void moveAnt(Ant* ant, int antNumber, double gameSpeed, double* directionDeviation) { //global -> tells the compiler that this function will be executed on the gpu
+__global__ void moveAnt(Ant* ant, int antNumber, double gameSpeed, double* directionDeviation, FoodPack* foodPacks, int foodPacksNumber, double radius) { //global -> tells the compiler that this function will be executed on the gpu
 	int i = threadIdx.x;
 
 	if (i >= antNumber) {
@@ -161,17 +179,70 @@ __global__ void moveAnt(Ant* ant, int antNumber, double gameSpeed, double* direc
 		printf("POS ANT %f %f\n", (ant + i)->position.x_pos, (ant + i)->position.y_pos);
 	}
 #endif
-	
-	double x_move = gameSpeed * sin((ant + i)->direction);
-	double y_move = gameSpeed * cos((ant + i)->direction);
 
-	double new_x = (ant + i)->position.x_pos + x_move;
-	double new_y = (ant + i)->position.y_pos + y_move;
+	if ((ant + i)->has_food) {
+		double distanceToAnthill = sqrt(((ant + i)->position.x_pos * (ant + i)->position.x_pos) + ((ant + i)->position.y_pos * (ant + i)->position.y_pos));
+		if (distanceToAnthill <= radius) {
+			(ant + i)->has_food = false;
+			(ant + i)->direction = (ant + i)->direction < 180 ? (ant + i)->direction + 180 : (ant + i)->direction - 180;
+		}
+		else {
+			double radDirection = (ant + i)->direction * PI / 180;
 
-	(ant + i)->position.x_pos = new_x;
-	(ant + i)->position.y_pos = new_y;
+			double x_move = gameSpeed * cos(radDirection);
+			double y_move = gameSpeed * sin(radDirection);
 
-	(ant + i)->direction += directionDeviation[i];
+			double new_x = (ant + i)->position.x_pos - x_move;
+			double new_y = (ant + i)->position.y_pos - y_move;
+
+			(ant + i)->position.x_pos = new_x;
+			(ant + i)->position.y_pos = new_y;
+		}
+	}
+	else {
+		bool isNearFoodPack = false;
+
+		for (unsigned int foodPackIndex = 0; foodPackIndex < foodPacksNumber; foodPackIndex++) {
+			double xDiff = (ant + i)->position.x_pos - foodPacks[foodPackIndex].position.x_pos;
+			double yDiff = (ant + i)->position.y_pos - foodPacks[foodPackIndex].position.y_pos;
+			double distanceAntFoodPack = sqrt(xDiff * xDiff + yDiff * yDiff);
+
+
+			if (distanceAntFoodPack <= radius && foodPacks[foodPackIndex].food_amount > 0) {
+				printf("ANT nr %d found food pack!!!\n", i);
+				foodPacks[foodPackIndex].food_amount -= 1;
+				ant[i].has_food = true;
+				isNearFoodPack = true;
+				break;
+			}
+		}
+
+
+		if (isNearFoodPack) {
+			double distanceToAnthill = sqrt(((ant + i)->position.x_pos * (ant + i)->position.x_pos) + ((ant + i)->position.y_pos * (ant + i)->position.y_pos));
+			ant[i].direction = acos(abs(ant[i].position.x_pos) / distanceToAnthill) * 180.0 / PI;
+			if ((ant + i)->position.x_pos <= 0 && (ant + i)->position.y_pos >= 0) {
+				ant[i].direction = 180 - ant[i].direction;
+			}
+			else if ((ant + i)->position.x_pos <= 0 && (ant + i)->position.y_pos <= 0) {
+				ant[i].direction = 180 + ant[i].direction;
+			} else if ((ant + i)->position.x_pos >= 0 && (ant + i)->position.y_pos <= 0) {
+				ant[i].direction = 360 - ant[i].direction;
+			}
+		}
+		else {
+			double x_move = gameSpeed * sin((ant + i)->direction);
+			double y_move = gameSpeed * cos((ant + i)->direction);
+
+			double new_x = (ant + i)->position.x_pos - x_move;
+			double new_y = (ant + i)->position.y_pos - y_move;
+
+			(ant + i)->position.x_pos = new_x;
+			(ant + i)->position.y_pos = new_y;
+
+			(ant + i)->direction += directionDeviation[i];
+		}
+	}
 }
 
 void cudaThread() {
@@ -184,13 +255,13 @@ void cudaThread() {
 			directionDeviations[i] = fRand(-0.2f, 0.2f);
 		}
 
-		moveAnt <<<1, antNumber>>> (ants, antNumber, gameSpeed, directionDeviations);
+		moveAnt <<<1, antNumber>>> (ants, antNumber, gameSpeed, directionDeviations, foodPacks, foodPacksNumber, radius);
 
 		cudaDeviceSynchronize();
 
 		dataChanged = true;
 
-		std::this_thread::sleep_for(std::chrono::milliseconds(30));
+		std::this_thread::sleep_for(std::chrono::milliseconds(40));
 	}
 }
 
