@@ -19,6 +19,19 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\config.h" />
+    <ClInclude Include="src\model\Ant.h" />
+    <ClInclude Include="src\model\FoodPack.h" />
+    <ClInclude Include="src\model\Position.h" />
+    <ClInclude Include="src\model\SimulationMap.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="src\model\Ant.cpp" />
+    <ClCompile Include="src\model\FoodPack.cpp" />
+    <ClCompile Include="src\model\Position.cpp" />
+    <ClCompile Include="src\model\SimulationMap.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include=".gitignore" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectGuid>{997E0757-EA74-4A4E-A0FC-47D8C8831A15}</ProjectGuid>

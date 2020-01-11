@@ -6,13 +6,13 @@
 class Ant
 {
 public:
-	int index;
+	unsigned int index;
 	Position position;
 	double speed;
 	double direction;
 	bool has_food;
 
-	Ant(const int index, const Position position, const double speed, const double direction);
+	Ant(const unsigned int index, const Position position, const double speed, const double direction);
 
 	~Ant();
 };
