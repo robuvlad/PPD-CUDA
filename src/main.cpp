@@ -32,7 +32,7 @@ std::mutex mtx;
 // =========== DATA SEGMENT =============
 unsigned int antNumber = 10;
 double gameSpeed = 0.004;
-unsigned int foodPacksNumber = 400;
+unsigned int foodPacksNumber = 10;
 unsigned int avgPerFoodPack = 1;
 double radius = 0.04;
 
@@ -241,6 +241,10 @@ __global__ void moveAnt(Ant* ant, int antNumber, double gameSpeed, double* direc
 			(ant + i)->position.y_pos = new_y;
 
 			(ant + i)->direction += directionDeviation[i];
+
+			if (abs((ant + i)->position.x_pos) >= 1 || abs((ant + i)->position.y_pos) >= 1) {
+				(ant + i)->direction += 180;
+			}
 		}
 	}
 }
