@@ -1,48 +1,29 @@
 #include <iostream>
-#include "config.h"
 #include <device_launch_parameters.h>
-
-// OpenGL Graphics includes
 #include <helper_gl.h>
 #include <GL/freeglut.h>
-
-// CUDA includes
 #include <cuda_runtime.h>
 #include <cuda_gl_interop.h>
-
-// CUDA utilities and system includes
 #include <helper_cuda.h>
 #include <helper_functions.h>
 #include <rendercheck_gl.h>
-
 #include <thread>
 #include <math.h>
 #include <chrono>
-
-
+#include "config.h"
 #include "model/Ant.h"
 #include "model/FoodPack.h"
 
-#include <mutex>
-
-std::mutex mtx;
-
-#define PI 3.14159265
 
 // =========== DATA SEGMENT =============
-unsigned int antNumber = 10;
-double gameSpeed = 0.004;
-unsigned int foodPacksNumber = 10;
-unsigned int avgPerFoodPack = 1;
-double radius = 0.04;
 
 Ant* ants;
 FoodPack* foodPacks;
 Position* anthillPos;
 double* directionDeviations;
-
 bool dataChanged = true;
 
+// =========== UTILS ===========
 
 double fRand(double fMin, double fMax)
 {
@@ -53,25 +34,25 @@ double fRand(double fMin, double fMax)
 void initializeState() {
 	printf("Initializing game state\n");
 
-	printf("Allocating memory for %d ants\n", antNumber);
-	cudaMallocManaged(&ants, antNumber * sizeof(Ant));
+	printf("Allocating memory for %d ants\n", ANTS_AMOUNT);
+	cudaMallocManaged(&ants, ANTS_AMOUNT * sizeof(Ant));
 
-	printf("Allocating memory for %d foodPacks\n", foodPacksNumber);
-	cudaMallocManaged(&foodPacks, foodPacksNumber * sizeof(FoodPack));
+	printf("Allocating memory for %d foodPacks\n", NUMBER_FOOD_PACKS);
+	cudaMallocManaged(&foodPacks, NUMBER_FOOD_PACKS * sizeof(FoodPack));
 
 	printf("Allocationg memory for direction deviations\n");
-	cudaMallocManaged(&directionDeviations, antNumber * sizeof(double));
+	cudaMallocManaged(&directionDeviations, ANTS_AMOUNT * sizeof(double));
 
 	cudaMallocManaged(&anthillPos, sizeof(Position));
 	anthillPos = new Position(0.0f, 0.0f);
 
 	printf("Initializing ants to starting state\n");
-	for (unsigned int i = 0; i < antNumber; i++) {
-		ants[i] = Ant(i, *anthillPos, gameSpeed, fRand(0, 359));
+	for (unsigned int i = 0; i < ANTS_AMOUNT; i++) {
+		ants[i] = Ant(i, *anthillPos, GAME_SPEED, fRand(0, 359));
 	}
 
 	printf("Initializing food packs to starting state\n");
-	for (unsigned int i = 0; i < foodPacksNumber; i++) {
+	for (unsigned int i = 0; i < NUMBER_FOOD_PACKS; i++) {
 		double xPos = fRand(-1, 1);
 		double yPos = fRand(-1, 1);
 		if (yPos < 0.3) {
@@ -80,74 +61,69 @@ void initializeState() {
 		else if (yPos > -0.3 && yPos < 0) {
 			yPos -= 0.3;
 		}
-		foodPacks[i] = FoodPack(avgPerFoodPack, Position(xPos, yPos));
+		foodPacks[i] = FoodPack(AVG_FOOD_IN_PACK, Position(xPos, yPos));
 	}
 }
 
-// ==================== OPEN GL =====================================
+// =========== OPEN GL ===========
 
 void drawAnt(Ant* ant) {
-	static const double antSize = 0.02;
-	glBegin(GL_QUADS);                       
-	glColor3f(1.0f, 0.0f, 0.0f);            
-	glVertex2f(ant->position.x_pos + antSize, ant->position.y_pos);
-	glVertex2f(ant->position.x_pos, ant->position.y_pos + antSize);
-	glVertex2f(ant->position.x_pos - antSize, ant->position.y_pos);
-	glVertex2f(ant->position.x_pos, ant->position.y_pos - antSize);
+	glBegin(GL_QUADS);
+	if (ant->has_food) {
+		glColor3f(1.0f, 3.0f, 2.0f);
+	}
+	else {
+		glColor3f(1.0f, 0.0f, 0.0f);
+	}
+	glVertex2f(ant->position.x_pos + ANT_SIZE, ant->position.y_pos);
+	glVertex2f(ant->position.x_pos, ant->position.y_pos + ANT_SIZE);
+	glVertex2f(ant->position.x_pos - ANT_SIZE, ant->position.y_pos);
+	glVertex2f(ant->position.x_pos, ant->position.y_pos - ANT_SIZE);
 	glEnd();
 }
 
 void drawAnthill() {
-	static const double anthillSize = 0.075;
 	glBegin(GL_QUADS);
 	glColor3f(1.0f, 0.5f, 0.0f);
-	glVertex2f(anthillPos->x_pos + anthillSize, anthillPos->y_pos);
-	glVertex2f(anthillPos->x_pos, anthillPos->y_pos + anthillSize);
-	glVertex2f(anthillPos->x_pos - anthillSize, anthillPos->y_pos);
-	glVertex2f(anthillPos->x_pos, anthillPos->y_pos - anthillSize);
+	glVertex2f(anthillPos->x_pos + ANTHILL_SIZE, anthillPos->y_pos);
+	glVertex2f(anthillPos->x_pos, anthillPos->y_pos + ANTHILL_SIZE);
+	glVertex2f(anthillPos->x_pos - ANTHILL_SIZE, anthillPos->y_pos);
+	glVertex2f(anthillPos->x_pos, anthillPos->y_pos - ANTHILL_SIZE);
 	glEnd();
 }
 
 void drawFoodPack(FoodPack* foodPack) {
-	static const double foodPackSize = 0.035;
+	double foodPackSize = FOOD_PACK_SIZE * (foodPack->food_amount > 0 ? log(foodPack->food_amount) + 1 : 1);
+	glBegin(GL_TRIANGLES);
 	if (foodPack->food_amount > 0) {
-		glBegin(GL_QUADS);
 		glColor3f(0.0f, 0.8f, 0.0f);
-		glVertex2f(foodPack->position.x_pos + foodPackSize, foodPack->position.y_pos);
-		glVertex2f(foodPack->position.x_pos, foodPack->position.y_pos + foodPackSize);
-		glVertex2f(foodPack->position.x_pos - foodPackSize, foodPack->position.y_pos);
-		glVertex2f(foodPack->position.x_pos, foodPack->position.y_pos - foodPackSize);
-		glEnd();
-	} else {
-		glBegin(GL_QUADS);
-		glColor3f(0.4f, 0.2f, 0.5f);
-		glVertex2f(foodPack->position.x_pos + foodPackSize, foodPack->position.y_pos);
-		glVertex2f(foodPack->position.x_pos, foodPack->position.y_pos + foodPackSize);
-		glVertex2f(foodPack->position.x_pos - foodPackSize, foodPack->position.y_pos);
-		glVertex2f(foodPack->position.x_pos, foodPack->position.y_pos - foodPackSize);
-		glEnd();
 	}
+	else {
+		glColor3f(0.4f, 0.2f, 0.5f);
+	}
+	glVertex2f(foodPack->position.x_pos, foodPack->position.y_pos + foodPackSize);
+	glVertex2f(foodPack->position.x_pos + foodPackSize, foodPack->position.y_pos - foodPackSize);
+	glVertex2f(foodPack->position.x_pos - foodPackSize, foodPack->position.y_pos - foodPackSize);
+	glEnd();
 }
 
-/* Handler for window-repaint event. Call back when the window first appears and
-whenever the window needs to be re-painted. */
 void display() 
 {
 	if (dataChanged) {
-		glClearColor(0.0f, 0.0f, 0.0f, 1.0f);    // Set background color to black and opaque
-		glClear(GL_COLOR_BUFFER_BIT);            // Clear the color buffer (background)
+		glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+		glClear(GL_COLOR_BUFFER_BIT);
 
 		drawAnthill();
 
-		for (unsigned int i = 0; i < antNumber; i++) {
+		for (unsigned int i = 0; i < ANTS_AMOUNT; i++) {
 			drawAnt(ants + i);
 		}
 
-		for (unsigned int i = 0; i < foodPacksNumber; i++) {
+		for (unsigned int i = 0; i < NUMBER_FOOD_PACKS; i++) {
 			drawFoodPack(foodPacks + i);
 		}
 
-		glFlush(); // Render now
+		glFlush();
 		dataChanged = false;
 	}
 }
@@ -156,29 +132,22 @@ void display()
 void runProgram(int argc, char **argv)
 {
 	glutInit(&argc, argv);      
-	glutInitWindowSize(WINDOW_WIDTH, WINDOW_HEIGTH);                 // Set the window's initial width & height
-	glutInitWindowPosition(WINDOW_X_POSITION, WINDOW_Y_POSITION);    // Position the window's initial top-left corner
-	glutCreateWindow(WINDOW_TITLE);                                  // Create a window with the given title
-	glutDisplayFunc(display);                                        // Register display callback handler for window re-paint
-	glutIdleFunc(display);                                     // Initialize GLUT
-	glutMainLoop();                                                  // Enter the event-processing loop
+	glutInitWindowSize(WINDOW_WIDTH, WINDOW_HEIGTH);
+	glutInitWindowPosition(WINDOW_X_POSITION, WINDOW_Y_POSITION);
+	glutCreateWindow(WINDOW_TITLE);
+	glutDisplayFunc(display);
+	glutIdleFunc(display);
+	glutMainLoop();
 }
 
 // ======================== CUDA CONTEXT ================================
 
-__global__ void moveAnt(Ant* ant, int antNumber, double gameSpeed, double* directionDeviation, FoodPack* foodPacks, int foodPacksNumber, double radius) { //global -> tells the compiler that this function will be executed on the gpu
+__global__ void moveAnt(Ant* ant, int antNumber, double gameSpeed, double* directionDeviation, FoodPack* foodPacks, int foodPacksNumber, double radius) {
 	int i = threadIdx.x;
 
 	if (i >= antNumber) {
 		return;
 	}
-
-#ifdef DEBUG
-	if (i == 2) {
-		printf("ANT NR %d GAME SPEED %d\n", antNumber, gameSpeed);
-		printf("POS ANT %f %f\n", (ant + i)->position.x_pos, (ant + i)->position.y_pos);
-	}
-#endif
 
 	if ((ant + i)->has_food) {
 		double distanceToAnthill = sqrt(((ant + i)->position.x_pos * (ant + i)->position.x_pos) + ((ant + i)->position.y_pos * (ant + i)->position.y_pos));
@@ -251,21 +220,20 @@ __global__ void moveAnt(Ant* ant, int antNumber, double gameSpeed, double* direc
 
 void cudaThread() {
 	printf("Running CUDA thread\n");
-	
 
 	while (true) {
 
-		for (unsigned int i = 0; i < antNumber; i++) {
+		for (unsigned int i = 0; i < ANTS_AMOUNT; i++) {
 			directionDeviations[i] = fRand(-0.2f, 0.2f);
 		}
 
-		moveAnt <<<1, antNumber>>> (ants, antNumber, gameSpeed, directionDeviations, foodPacks, foodPacksNumber, radius);
+		moveAnt <<<1, ANTS_AMOUNT>>> (ants, ANTS_AMOUNT, GAME_SPEED, directionDeviations, foodPacks, NUMBER_FOOD_PACKS, PROXIMITY_RADIUS);
 
 		cudaDeviceSynchronize();
 
 		dataChanged = true;
 
-		std::this_thread::sleep_for(std::chrono::milliseconds(40));
+		std::this_thread::sleep_for(std::chrono::milliseconds(THREAD_SLEEP));
 	}
 }
 
